@@ -1,0 +1,96 @@
+lio:
+  # Map settings
+  map:
+    save_map: false
+    if_filter: true
+    save_map_dir: "map"
+    map_name: "subt_mrs_map.pcd"
+    ds_size: 0.25
+    save_interval: 500    # -1 stores all frames directly (may cause excessive memory usage).
+                          # Values > 0 save one frame every N frames, then merge at the end.
+
+  # ROS Topic input (SubT_MRS dataset topics)
+  ros:
+    lidar_topic: "/velodyne_points"
+    imu_topic: "/imu/data"
+
+  # Sensor Configuration
+  sensor:
+    lidar_type: 3        # Velodyne VLP-16 (16-line)
+    blind: 0.4           # Blind zone config
+    maxrange: 100.0      # Extended range for underground tunnel environment
+    filter_rate: 3.0
+    enable_downsample: true
+    voxel_fliter_size: 0.1    
+    gravity_norm: 9.7946         # Standard gravity
+    imu_type: 1
+
+    # IMU noise parameters
+    imu_na: 0.1
+    imu_ng: 0.1
+    imu_nba: 0.0001
+    imu_nbg: 0.0001
+    # imu_na: 0.08        # accelerometer measurement noise (acc_n)
+    # imu_ng: 0.004       # gyroscope measurement noise (gyr_n)
+    # imu_nba: 0.00004    # accelerometer bias random walk (acc_w)
+    # imu_nbg: 0.000002   # gyroscope bias random walk (gyr_w)
+
+  # Extrinsic Parameters (LiDAR to IMU)
+  extrinsic:
+    # Laurel_Cavern
+    # lidar_imu: [0.080, 0.029, 0.030,    # Translation from laser to IMU
+    #             1.0, 0.0, 0.0,           # Rotation matrix (identity)
+    #             0.0, 1.0, 0.0,
+    #             0.0, 0.0, 1.0]
+
+    # Final_Challenge, Urban_Challenge
+    lidar_imu: [0.0, 0.0, 0.0,    # Translation from laser to IMU
+                1.0, 0.0, 0.0,           # Rotation matrix (identity)
+                0.0, 1.0, 0.0,
+                0.0, 0.0, 1.0]
+
+    # Long_Corridor
+    # lidar_imu: [0.080, 0.029, 0.030,    # Translation from laser to IMU
+    #             0.9992129, -0.000519121,  0.004, 0.000516111,  0.999218492, -0.000939132, -0.004,  0.000802565,  0.999993652]
+
+    # Corridor02
+    # extrinsic_T: [0.0, 0.0, 0.0]
+    # extrinsic_T: [0.999954875339377, 0.0000000, 0.009499857104811, 0.0000000, 1.0000000, 0.0000000, -0.009499857104811, 0.0000000, 0.999954875339377]
+
+    # Multi_Floor
+    # lidar_imu: [0.080, 0.029, 0.030,    # Translation from laser to IMU
+    #             0.999945562, 0.009074807,  0.005149763, -0.009060897, 0.999955255, -0.002718066, -0.005174199, 0.002671256,  0.999983046]
+
+    odom_robo: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # Transform from odom to robot frame.
+                                               # The odom frame is directly attached to the IMU frame.
+                                               # NOTE: The inverse of this transform is applied in the code.
+
+  # Vox hash Map (ikd-tree / OctoVoxMap)
+  hash_map:
+    hash_capacity: 2000000
+    vox_resolution: 0.5    
+    
+  # Kalman Filter Parameters
+  kf:
+    kf_type: 0            # 0: ESKF (standard)
+    kf_max_iterations: 5  
+    kf_align_gravity: true
+    kf_quit_eps: 0.001
+
+  # Output options
+  output:
+    robot:  false
+    plan_env_world: false
+    plan_env_body:  false
+    ml_map:  false
+    planner: false
+    map:    true         # Publish map pointcloud
+    dense:  true         
+    pub_step: 1
+
+  # Evaluation
+  evo:
+    timer: true
+    pose_output_en: true  # Enable/disable pose output (odom and path topics)
+    seq_name: "result"   # Sequence name for output files
+    pose_output_dir: "/home/wsl-4080/code/traj_evo/pred/super-lio"  # Output directory for pose files

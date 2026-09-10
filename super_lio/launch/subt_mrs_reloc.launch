@@ -1,0 +1,23 @@
+<launch>
+
+  <arg name="rviz" default="false" />
+  <arg name="map_file" default="$(find super_lio)/map/subt_mrs_map.pcd" doc="Path to pre-built map for relocalization"/>
+
+  <!-- Load configuration parameters -->
+  <rosparam file="$(find super_lio)/config/subt_mrs.yaml" command="load"/>
+
+  <!-- Override map saving settings for relocalization mode -->
+  <param name="lio/map/save_map" value="false"/>
+  <param name="lio/map/map_name" value="subt_mrs_reloc.pcd"/>
+
+  <!-- Launch Super-LIO Relocalization Node -->
+  <node pkg="super_lio" type="relocation_node" name="super_lio_reloc_node" output="screen" required="true">
+    <param name="map_path" value="$(arg map_file)"/>
+  </node>
+
+  <!-- Optional RViz -->
+  <group if="$(arg rviz)">
+    <node pkg="rviz" type="rviz" name="super_lio_rviz" args="-d $(find super_lio)/rviz/lio.rviz" />
+  </group>
+
+</launch>

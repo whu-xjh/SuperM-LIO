@@ -1,0 +1,183 @@
+lio:
+  # Map settings
+  map:
+    save_map: true
+    if_filter: true
+    save_map_dir: "map"
+    map_name: "map.pcd"
+    ds_size: 0.25
+    save_interval: 500    # -1 stores all frames directly (may cause excessive memory usage).
+                          # Values > 0 save one frame every N frames, then merge at the end.
+
+  # ROS Topic input
+  ros:
+    lidar_topic: "/livox/lidar"
+    imu_topic: "/livox/imu"
+
+    # for simulation
+    # lidar_topic: "/livox/lidar"
+    # imu_topic: "/mavros/imu/data"
+
+  # Sensor Configuration
+  sensor:
+    lidar_type: 1
+    blind: 2.0
+    maxrange: 60.0
+    filter_rate: 3.0
+    enable_downsample: true
+    voxel_fliter_size: 0.5
+    gravity_norm: 9.7946
+    imu_type: 1
+    imu_na: 0.1
+    imu_ng: 0.1
+    imu_nba: 0.0001
+    imu_nbg: 0.0001
+
+  # Extrinsic Parameters
+  extrinsic:
+    lidar_imu: [-0.011, -0.02329, 0.04412,      # lidar in imu
+                1.0, 0.0, 0.0, 
+                0.0, 1.0, 0.0, 
+                0.0, 0.0, 1.0]
+    odom_robo: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0]  # Transform from odom to robot frame.
+                                               # The odom frame is directly attached to the IMU frame.
+                                               # NOTE: The inverse of this transform is applied in the code.
+
+
+  # Vox hash Map
+  hash_map:
+    hash_capacity: 2000000
+    vox_resolution: 0.5
+
+  # Kalman Filter Parameters
+  kf:
+    kf_type: 0
+    kf_max_iterations: 4
+    kf_align_gravity: true
+    kf_quit_eps: 0.001
+    imu_int_frame: 50    # IMU frames accumulated before KF init (FAST-LIVO2: imu_int_frame).
+                         # mid360 IMU runs at 200 Hz -> 50 frames = 0.25 s; old hardcoded value was 50.
+
+  # output
+  output:
+    robot:  false
+    plan_env_world: false
+    plan_env_body:  false
+    ml_map:  false
+    planner: false
+    map:    true
+    dense:  true
+    pub_step: 1
+
+  evo:
+    timer: true
+    pose_output_en: false
+    seq_name: "livox_mid360"
+    pose_output_dir: "/home/wsl-4080/code/traj_evo/pred/super-lio"
+
+# Moving-object filter (M-detector), flat keys read by m_detector's DynObjFilter.
+# Enabled here; set dyn_obj/en to false to fall back to plain super_lio.
+dyn_obj:
+  en: true
+
+  dataset: 4
+  buffer_delay: 0.1
+  buffer_size: 100000
+  points_num_perframe: 20000
+  depth_map_dur: 0.4
+  max_depth_map_num: 5
+  max_pixel_points: 20
+  frame_dur: 0.1            # super_lio runs the mid360 at 10 Hz
+  self_x_f: 0
+  self_x_b: 0
+  self_y_l: 0
+  self_y_r: 0
+  blind_dis: 0.3
+  fov_up: 52
+  fov_down: -7
+  fov_left: 180.0
+  fov_right: -180.0
+  fov_cut: -20.0
+
+  depth_thr1: 0.5
+  enter_min_thr1: 0.5
+  enter_max_thr1: 0.5
+  map_cons_depth_thr1: 0.5
+  map_cons_hor_thr1: 0.05
+  map_cons_ver_thr1: 0.05
+  map_cons_hor_dis1: 0.3
+  map_cons_ver_dis1: 0.6
+  depth_cons_depth_thr1: 0.5
+  depth_cons_depth_max_thr1: 1.0
+  depth_cons_hor_thr1: 0.05
+  depth_cons_ver_thr1: 0.05
+  enlarge_z_thr1: -2.5
+  enlarge_angle: 2.0
+  enlarge_depth: 3.0
+  occluded_map_thr1: 3
+  case1_interp_en: true
+
+  v_min_thr2: 0.5
+  acc_thr2: 7.0
+  map_cons_depth_thr2: 0.3
+  map_cons_hor_thr2: 0.02
+  map_cons_ver_thr2: 0.06
+  occ_depth_thr2: 0.3
+  occ_hor_thr2: 0.02
+  occ_ver_thr2: 0.06
+  depth_cons_depth_thr2: 0.1
+  depth_cons_depth_max_thr2: 0.5
+  depth_cons_hor_thr2: 0.03
+  depth_cons_ver_thr2: 0.06
+  occluded_times_thr2: 3
+  k_depth2: 0.005
+  case2_interp_en: false
+
+  v_min_thr3: 0.5
+  acc_thr3: 15.0
+  map_cons_depth_thr3: 0.1
+  map_cons_hor_thr3: 0.03
+  map_cons_ver_thr3: 0.03
+  occ_depth_thr3: 0.15
+  occ_hor_thr3: 0.03
+  occ_ver_thr3: 0.03
+  depth_cons_depth_thr3: 0.3
+  depth_cons_depth_max_thr3: 1.0
+  depth_cons_hor_thr3: 0.03
+  depth_cons_ver_thr3: 0.03
+  occluded_times_thr3: 3
+  case3_interp_en: false
+
+  interp_hor_thr: 0.03
+  interp_ver_thr: 0.03
+  interp_thr1: 0.5
+  interp_static_max: 10.0
+  interp_start_depth1: 10
+  interp_kp1: 0.1
+  interp_kd1: 0.5
+  interp_thr2: 0.25
+  interp_thr3: 0.05
+
+  point_index: -1
+  debug_publish: false
+  # Cluster post-processing disabled: Cluster.Init() would pre-allocate a
+  # 2000x2000x400 voxel table (~190 GB) with the upstream mid360 resolution.
+  cluster_coupled: false
+  cluster_future: false
+  cluster_extend_pixel: 3
+  cluster_min_pixel_number: 1
+  cluster_thrustable_thresold: 0.1
+  cluster_Voxel_revolusion: 0.5
+  cluster_out_file: ""
+
+  dyn_filter_en: true
+  frame_id: "world"
+  # NOTE: DynObjFilter::init() swaps these two keys while loading — the value
+  # under ver_resolution_max becomes the AZIMUTH cell (0.04 rad ~ 2.3deg),
+  # hor_resolution_max the ELEVATION cell (0.025 rad ~ 1.4deg).
+  ver_resolution_max: 0.04
+  hor_resolution_max: 0.025
+  buffer_dur: 0.1
+  laserCloudSteadObj_accu_limit: 5
+  voxel_filter_size: 0.1
+  checkneighbor_range: 1
