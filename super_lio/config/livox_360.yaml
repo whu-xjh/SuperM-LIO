@@ -57,6 +57,13 @@ lio:
     kf_quit_eps: 0.001
     imu_int_frame: 50    # IMU frames accumulated before KF init (FAST-LIVO2: imu_int_frame).
                          # mid360 IMU runs at 200 Hz -> 50 frames = 0.25 s; old hardcoded value was 50.
+    # Moving-object filter position in the per-frame pipeline:
+    #   true:  1-2-4-3-5, DynamicFilter BEFORE the ESKF update. Dynamic points never
+    #          enter the residuals, but the filter then uses the PREDICTED pose, and
+    #          a false positive removed here also weakens the pose estimate
+    #          (FP -> worse pose -> more FP feedback risk).
+    #   false: 1-2-3-4-5, DynamicFilter AFTER Observe() with the refined pose (original order).
+    dyn_filter_before_observe: true
 
   # output
   output:

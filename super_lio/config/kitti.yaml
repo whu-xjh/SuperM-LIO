@@ -1,0 +1,65 @@
+lio:
+  # Map settings
+  map:
+    save_map: false
+    if_filter: false
+    save_map_dir: "map"
+    map_name: "map.pcd"
+    ds_size: 0.3
+    save_interval: 500
+
+  # ROS Topic input
+  ros:
+    lidar_topic: "/kitti/velo/pointcloud"
+    imu_topic: "/kitti/oxts/imu"
+
+  # Sensor Configuration
+  sensor:
+    lidar_type: 8            # VELO_KITTI: x/y/z/intensity only, stamp from sim clock
+    blind: 1.0
+    maxrange: 120.0
+    filter_rate: 3.0
+    enable_downsample: true
+    voxel_fliter_size: 0.5
+    gravity_norm: 9.81
+    imu_type: 0
+    imu_na: 0.00399          # OXTS RT3003
+    imu_ng: 0.00156
+    imu_nba: 0.000064
+    imu_nbg: 0.000036
+
+  # Extrinsic Parameters
+  extrinsic:
+    lidar_imu: [0.810544, -0.307054, 0.802724,   # lidar in imu (inv of calib imu_to_velo)
+                0.99999760, -0.00078540,  0.00202441,
+                0.00075531,  0.99988980,  0.01482454,
+                -0.00203583, -0.01482454, 0.99988810]
+    odom_robo: [0, 0, 0, 0, 0, 0]
+
+  # Vox hash Map
+  hash_map:
+    hash_capacity: 100000000
+    vox_resolution: 0.5
+
+  # Kalman Filter Parameters
+  kf:
+    kf_type: 0
+    kf_max_iterations: 4
+    kf_align_gravity: true
+    kf_quit_eps: 0.001
+
+  # output
+  output:
+    robot:  false
+    plan_env_world: false
+    plan_env_body:  false
+    planner: false
+    map:    true
+    dense:  true
+    pub_step: 5
+
+  evo:
+    timer: true
+    pose_output_en: false
+    seq_name: "kitti"
+    pose_output_dir: "/home/wsl-4080/code/traj_evo/pred/super-lio"

@@ -92,6 +92,7 @@ void LoadParamFromRos(ros::NodeHandle& nh){
   nh.getParam("/lio/kf/kf_align_gravity", g_kf_align_gravity);
   nh.getParam("/lio/kf/kf_quit_eps", g_kf_quit_eps);
   nh.getParam("/lio/kf/imu_int_frame", g_imu_int_frame);
+  nh.getParam("/lio/kf/dyn_filter_before_observe", g_dyn_filter_before_observe);
 
   // submaps
   nh.getParam("/lio/submap/submap_resolution", g_submap_resolution);
@@ -322,10 +323,55 @@ void ROSWrapper::stdMsgHandler(const sensor_msgs::PointCloud2::ConstPtr& msg){
     for(std::size_t i = 0; i < pl_orig.size(); i += g_filter_rate){
       auto& pt = pl_orig.points[i];
       if (!validPoint(pt.x, pt.y, pt.z)) continue;
+      // Velodyne drivers stamp the sweep at its END, so per-point time can be
+      // negative (down to -period). Normalise into [0, period]: negative times
+      // would index M-detector's temporal depth map out of bounds (SIGSEGV).
+      const float t = pt.time < 0.0f ? pt.time + 0.1f : pt.time;
       lidar_data.pc->emplace_back(
-          pt.x, pt.y, pt.z, pt.intensity, pt.time);
+          pt.x, pt.y, pt.z, pt.intensity, t);
     }
-    lidar_data.end_time = lidar_data.start_time + lidar_data.pc->points.back().offset_time;
+    if (!lidar_data.pc->empty())
+      lidar_data.end_time = lidar_data.start_time + lidar_data.pc->points.back().offset_time;
+    else
+      lidar_data.end_time = lidar_data.start_time;
+    break;
+  }
+  case LID_TYPE::VELO_KITTI:
+  {
+    // KITTI raw -> bag clouds carry only x/y/z/intensity (no per-point time,
+    // no ring) and their header.stamp is 0, so the scan is stamped from the
+    // sim clock; play the bag with `rosbag play --clock` + use_sim_time.
+    pcl::PointCloud<pcl::PointXYZI> pl_orig;
+    pcl::fromROSMsg(*msg, pl_orig);
+    lidar_data.pc->reserve(pl_orig.size() / g_filter_rate + 1);
+    lidar_data.start_time = msg->header.stamp.toSec();
+    if (lidar_data.start_time <= 0.0) lidar_data.start_time = ros::Time::now().toSec();
+
+    for(std::size_t i = 0; i < pl_orig.size(); i += g_filter_rate){
+      auto& pt = pl_orig.points[i];
+      if (!validPoint(pt.x, pt.y, pt.z)) continue;
+      lidar_data.pc->emplace_back(
+          pt.x, pt.y, pt.z, pt.intensity, 0.0);
+    }
+    lidar_data.end_time = lidar_data.start_time;  // no per-point time: no deskew
+    break;
+  }
+  case LID_TYPE::RSLIDAR:
+  {
+    // M2DGR-plus RoboSense bags declare only x/y/z/intensity. The undeclared
+    // float at byte offset 16 looks like a noise metric (non-monotonic,
+    // 0-57), NOT a time ramp, so no deskew is possible: all points are
+    // registered at the scan stamp.
+    const std::size_t n_pts = std::size_t(msg->width) * std::size_t(msg->height);
+    lidar_data.pc->reserve(n_pts / g_filter_rate + 1);
+    lidar_data.start_time = msg->header.stamp.toSec();
+
+    for (std::size_t i = 0; i < n_pts; i += g_filter_rate) {
+      const float* p = reinterpret_cast<const float*>(msg->data.data() + i * msg->point_step);
+      if (!validPoint(p[0], p[1], p[2])) continue;
+      lidar_data.pc->emplace_back(p[0], p[1], p[2], p[3], 0.0);
+    }
+    lidar_data.end_time = lidar_data.start_time;  // no per-point time: no deskew
     break;
   }
   case OUSTER:

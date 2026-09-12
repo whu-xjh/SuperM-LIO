@@ -1,0 +1,20 @@
+<launch>
+
+  <arg name="rviz" default="true" />
+
+  <!-- KITTI clouds carry no header.stamp: the node stamps scans from the sim
+       clock, so play the bag with:
+         rosbag play --clock /mnt/f/data/rosbag/KITTI/kitti_imu/07.bag -->
+  <param name="/use_sim_time" value="true"/>
+
+  <rosparam file="$(find super_lio)/config/kitti.yaml" command="load"/>
+
+  <!-- Launch Nodes -->
+  <node pkg="super_lio" type="super_lio_node" name="lio_node" output="screen"/>
+
+  <!-- Optional RViz -->
+  <group if="$(arg rviz)">
+		<node pkg="rviz" type="rviz" name="super_lio" args="-d $(find super_lio)/rviz/lio.rviz" />
+	</group>
+
+</launch>

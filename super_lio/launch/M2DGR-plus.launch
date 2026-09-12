@@ -2,16 +2,14 @@
 
   <arg name="rviz" default="true" />
 
-  <rosparam file="$(find super_lio)/config/M2DGR.yaml" command="load"/>
+  <rosparam file="$(find super_lio)/config/M2DGR-plus.yaml" command="load"/>
 
   <!-- Launch Nodes -->
   <node pkg="super_lio" type="super_lio_node" name="lio_node" output="screen"/>
-  <param name="/use_sim_time" value="true"/>
 
   <!-- Optional RViz -->
   <group if="$(arg rviz)">
 		<node pkg="rviz" type="rviz" name="super_lio" args="-d $(find super_lio)/rviz/lio.rviz" />
 	</group>
-
 
 </launch>

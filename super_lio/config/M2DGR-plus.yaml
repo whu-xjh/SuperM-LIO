@@ -8,32 +8,32 @@ lio:
     ds_size: 0.3
     save_interval: 500
 
-  # ROS Topic input
+  # ROS Topic input (M2DGR-plus car platform: RoboSense 16 + wheeltec imu)
   ros:
-    lidar_topic: "/velodyne_points"
-    imu_topic: "/handsfree/imu"
+    lidar_topic: "/rslidar_points"
+    imu_topic: "/imu"
 
   # Sensor Configuration
   sensor:
-    lidar_type: 4
-    blind: 2.0
+    lidar_type: 9            # RSLIDAR: hidden per-point time (ms) at byte offset 16
+    blind: 1.0
     maxrange: 150.0
     filter_rate: 3.0
     enable_downsample: true
     voxel_fliter_size: 0.5
-    gravity_norm: 9.7946
+    gravity_norm: 9.805
     imu_type: 0
-    imu_na: 0.1
-    imu_ng: 0.1
-    imu_nba: 0.0001
-    imu_nbg: 0.0001
+    imu_na: 0.0124           # wheeltec imu, from M2DGR-plus calibration.txt
+    imu_ng: 0.003
+    imu_nba: 0.000192        # bias random-walk MUST stay small (~1e-4);
+    imu_nbg: 0.0000547       # 0.1 here makes the ESKF diverge within seconds
 
   # Extrinsic Parameters
   extrinsic:
-    lidar_imu: [0.29, 0, 0.84,      # lidar in imu
-                1.0, 0.0, 0.0, 
-                0.0, 1.0, 0.0, 
-                0.0, 0.0, 1.0]
+    lidar_imu: [-0.13, 0, -1.03,                 # lidar in imu (official lidar2imu)
+                1.0,  0.0,  0.0,
+                0.0, -1.0,  0.0,
+                0.0,  0.0, -1.0]
     odom_robo: [0, 0, 0, 0, 0, 0]
 
   # Vox hash Map
@@ -47,6 +47,10 @@ lio:
     kf_max_iterations: 4
     kf_align_gravity: true
     kf_quit_eps: 0.001
+    # Moving-object filter position in the per-frame pipeline:
+    #   true:  DynamicFilter BEFORE the ESKF update — dynamic points never enter
+    #          the residuals, but a false positive also weakens the pose estimate
+    #   false: DynamicFilter AFTER Observe() with the refined pose (original order)
     dyn_filter_before_observe: true
 
   # output
@@ -62,31 +66,35 @@ lio:
   evo:
     timer: true
     pose_output_en: false
-    seq_name: "m2dgr"
+    seq_name: "m2dgr_plus"
     pose_output_dir: "/home/wsl-4080/code/traj_evo/pred/super-lio"
 
 # Moving-object filter (M-detector), flat keys read by m_detector's DynObjFilter.
-# Tuned for M2DGR's Velodyne VLP-32C (32-beam, 10 Hz, FOV +15/-25 deg, 0.2 deg
-# horizontal), referencing M-detector's waymo0.yaml and the sparse-lidar values
-# from livox_360.yaml. Set dyn_obj/en to false to fall back to plain super_lio.
+# Tuned for M2DGR-plus' RoboSense RS-16 (16-beam, 5 Hz in these bags, FOV
+# +/-15 deg vertical, 0.2 deg horizontal) on a car platform; thresholds follow
+# the sparse-lidar values from livox_360.yaml / M2DGR.yaml.
+# NOTE: these bags carry no per-point time (the RSLIDAR handler sets 0), so
+# M-detector sees every point at the scan stamp — intra-scan motion is not
+# compensated, detection quality is slightly reduced but functional.
+# Set dyn_obj/en to false to fall back to plain super_lio.
 dyn_obj:
   en: true
 
   dataset: 0                # only used by M-detector's offline recall tooling
   buffer_delay: 0.1
-  buffer_size: 300000
-  points_num_perframe: 150000
+  buffer_size: 200000
+  points_num_perframe: 58000
   depth_map_dur: 0.4
   max_depth_map_num: 5
   max_pixel_points: 20
-  frame_dur: 0.1            # VLP-32C runs at 10 Hz
-  self_x_f: 0.5             # M2DGR ground robot extents (m)
-  self_x_b: -0.5
-  self_y_l: 0.5
-  self_y_r: -0.5
+  frame_dur: 0.2            # RS-16 runs at 5 Hz in this dataset
+  self_x_f: 1.0             # car platform extents (lidar near roof centre)
+  self_x_b: -1.0
+  self_y_l: 0.9
+  self_y_r: -0.9
   blind_dis: 0.5
-  fov_up: 15.0              # VLP-32C: +15 / -25 deg vertical
-  fov_down: -25.0
+  fov_up: 15.0              # RS-16: +/-15 deg vertical
+  fov_down: -15.0
   fov_left: 180.0
   fov_right: -180.0
   fov_cut: 0
@@ -96,13 +104,13 @@ dyn_obj:
   enter_max_thr1: 0.5
   map_cons_depth_thr1: 0.5
   map_cons_hor_thr1: 0.02
-  map_cons_ver_thr1: 0.03
+  map_cons_ver_thr1: 0.04
   map_cons_hor_dis1: 0.3
   map_cons_ver_dis1: 0.6
   depth_cons_depth_thr1: 0.5
   depth_cons_depth_max_thr1: 1.0
   depth_cons_hor_thr1: 0.02
-  depth_cons_ver_thr1: 0.03
+  depth_cons_ver_thr1: 0.04
   enlarge_z_thr1: -2.5
   enlarge_angle: 2.0
   enlarge_depth: 3.0
@@ -152,6 +160,8 @@ dyn_obj:
 
   point_index: -1
   debug_publish: false
+  # Cluster post-processing disabled: Cluster.Init() would pre-allocate a huge
+  # voxel table with upstream defaults (see livox_360.yaml note).
   cluster_coupled: false
   cluster_future: false
   cluster_extend_pixel: 3
@@ -162,8 +172,12 @@ dyn_obj:
 
   dyn_filter_en: true
   frame_id: "world"
-  ver_resolution_max: 0.004
-  hor_resolution_max: 0.022
+  # NOTE: DynObjFilter::init() swaps these two keys while loading — the value
+  # under ver_resolution_max becomes the AZIMUTH cell (0.0035 rad ~ 0.2 deg,
+  # RS-16 horizontal), hor_resolution_max the ELEVATION cell (0.033 rad ~
+  # 1.9 deg, 16 channels over 30 deg).
+  ver_resolution_max: 0.0035
+  hor_resolution_max: 0.033
   buffer_dur: 0.1
   laserCloudSteadObj_accu_limit: 5
   voxel_filter_size: 0.1

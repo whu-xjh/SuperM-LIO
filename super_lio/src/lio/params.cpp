@@ -52,6 +52,7 @@ namespace LI2Sup{
   bool g_kf_align_gravity = true;
   double g_kf_quit_eps;
   int g_imu_int_frame = 50;         // fallback for yamls without kf/imu_int_frame
+  bool g_dyn_filter_before_observe = false; // default: filter after Observe(), as before
 
   /// submap 
   double g_submap_resolution;

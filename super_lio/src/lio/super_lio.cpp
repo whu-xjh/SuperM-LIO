@@ -201,14 +201,26 @@ void SuperLIO::stateProcess(){
   if(g_time_evo){
     time_record_.Evaluate([this](){Propagation_Undistort();}, "Undistort");
     time_record_.Evaluate([this]() { DownSample(); }, "DownSample");
-    time_record_.Evaluate([this]() { Observe(); }, "Observe");
-    time_record_.Evaluate([this]() { DynamicFilter(); }, "DynFilter");
+    time_record_.Evaluate([this]() { FillBodyPoints(); }, "FillBody");
+    if(g_dyn_filter_before_observe){
+      time_record_.Evaluate([this]() { DynamicFilter(); }, "DynFilter");
+      time_record_.Evaluate([this]() { Observe(); }, "Observe");
+    }else{
+      time_record_.Evaluate([this]() { Observe(); }, "Observe");
+      time_record_.Evaluate([this]() { DynamicFilter(); }, "DynFilter");
+    }
     time_record_.Evaluate([this]() { UpdateMap(); }, "UpdateMap");
   }else{
     Propagation_Undistort();
     DownSample();
-    Observe();
-    DynamicFilter();
+    FillBodyPoints();
+    if(g_dyn_filter_before_observe){
+      DynamicFilter();   // 1-2-4-3-5: only static points enter the ESKF update
+      Observe();
+    }else{
+      Observe();
+      DynamicFilter();   // 1-2-3-4-5: filter with the refined pose (default)
+    }
     UpdateMap();
   }
   Output();
@@ -216,9 +228,23 @@ void SuperLIO::stateProcess(){
 }
 
 
-/// M-detector moving-object removal. Runs with the refined pose of the current
-/// scan, before the map update: dynamic points are stripped from the mapping
-/// cloud and published separately.
+/// Mirrors the downsampled scan into points_body_v3_, consumed by both
+/// DynamicFilter() and Observe(). Filled right after DownSample() so the
+/// moving-object filter can run on either side of Observe().
+void SuperLIO::FillBodyPoints(){
+  const std::size_t ptsize = ds_undistort_->size();
+  points_body_v3_.resize(ptsize);
+  for(std::size_t i = 0; i < ptsize; ++i){
+    const auto& point_body_pcl = ds_undistort_->points[i];
+    points_body_v3_[i] = V3(point_body_pcl.x, point_body_pcl.y, point_body_pcl.z);
+  }
+}
+
+
+/// M-detector moving-object removal. Strips dynamic points from the mapping
+/// cloud (and, with kf/dyn_filter_before_observe, from the ESKF input) and
+/// publishes them separately. The pose is the refined one after Observe(), or
+/// the predicted one when the filter runs first.
 void SuperLIO::DynamicFilter(){
   const SE3 pose_end = kf_->GetSE3();
   const bool filtered = dyn_filter_->process(*ds_undistort_,
@@ -456,17 +482,14 @@ struct ThreadACC{
 
 void SuperLIO::Observe(){
   size_t ptsize = ds_undistort_->size();
-  
+
   static std::vector<float> _lengths;
-  points_body_v3_.resize(ptsize);
   _lengths.resize(ptsize);
 
   effect_knn_num_ = ptsize;
   std::iota(effect_knn_idxs_.begin(), effect_knn_idxs_.begin() + ptsize, 0);
 
   for(size_t i = 0; i < ptsize; ++i){
-    const auto& point_body_pcl = ds_undistort_->points[i];
-    points_body_v3_[i] = V3(point_body_pcl.x, point_body_pcl.y, point_body_pcl.z);
     _lengths[i] = points_body_v3_[i].norm();
   }
 

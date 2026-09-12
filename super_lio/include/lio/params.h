@@ -69,6 +69,7 @@ namespace LI2Sup{
   extern bool g_kf_align_gravity;
   extern double g_kf_quit_eps;
   extern int g_imu_int_frame;      // IMU frames accumulated before KF init (FAST-LIVO2 style imu_int_frame).
+  extern bool g_dyn_filter_before_observe; // true: moving-object filter before the ESKF update (1-2-4-3-5).
 
   /// submaps
   extern double g_submap_resolution;

@@ -46,6 +46,7 @@ protected:
   virtual bool map_init();
   void Propagation_Undistort();
   void DownSample();
+  void FillBodyPoints();
   void Observe();
   void DynamicFilter();
   virtual void UpdateMap();

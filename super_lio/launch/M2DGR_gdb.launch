@@ -1,0 +1,6 @@
+<launch>
+  <arg name="rviz" default="false" />
+  <rosparam file="$(find super_lio)/config/M2DGR.yaml" command="load"/>
+  <node pkg="super_lio" type="super_lio_node" name="lio_node" output="screen"
+        launch-prefix="gdb -q -batch -ex run -ex 'bt 30' --args " />
+</launch>
