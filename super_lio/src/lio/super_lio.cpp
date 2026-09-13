@@ -74,7 +74,7 @@ void SuperLIO::init(){
   dyn_cloud_world_.reset(new PointCloudType());
   steady_cloud_world_.reset(new PointCloudType());
 
-  dyn_filter_.reset(new DynObjFilterWrapper());
+  dyn_filter_.reset(new DynObjFilterWrapper()); // M-Detector
   dyn_filter_->init();
 
   if(g_save_map){

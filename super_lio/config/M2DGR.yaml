@@ -57,7 +57,7 @@ lio:
     planner: false
     map:    true
     dense:  true
-    pub_step: 5
+    pub_step: 1
 
   evo:
     timer: true
@@ -72,19 +72,19 @@ lio:
 dyn_obj:
   en: true
 
-  dataset: 0                # only used by M-detector's offline recall tooling
+  dataset: 0                # 0 enables SelfPointCheck self-box filtering (and recall tooling)
   buffer_delay: 0.1
   buffer_size: 300000
   points_num_perframe: 150000
   depth_map_dur: 0.4
-  max_depth_map_num: 5
-  max_pixel_points: 20
+  max_depth_map_num: 10
+  max_pixel_points: 10
   frame_dur: 0.1            # VLP-32C runs at 10 Hz
   self_x_f: 0.5             # M2DGR ground robot extents (m)
   self_x_b: -0.5
   self_y_l: 0.5
   self_y_r: -0.5
-  blind_dis: 0.5
+  blind_dis: 2.0
   fov_up: 15.0              # VLP-32C: +15 / -25 deg vertical
   fov_down: -25.0
   fov_left: 180.0
@@ -94,16 +94,16 @@ dyn_obj:
   depth_thr1: 0.5
   enter_min_thr1: 0.5
   enter_max_thr1: 0.5
-  map_cons_depth_thr1: 0.5
+  map_cons_depth_thr1: 0.3     # rescue depth tolerance (x3 inside enlarge band)
   map_cons_hor_thr1: 0.02
   map_cons_ver_thr1: 0.03
-  map_cons_hor_dis1: 0.3
-  map_cons_ver_dis1: 0.6
+  map_cons_hor_dis1: 0.15      # meter-based rescue window; dominates near field, keep tight
+  map_cons_ver_dis1: 0.15
   depth_cons_depth_thr1: 0.5
   depth_cons_depth_max_thr1: 1.0
   depth_cons_hor_thr1: 0.02
   depth_cons_ver_thr1: 0.03
-  enlarge_z_thr1: -2.5
+  enlarge_z_thr1: 8.0         # deg; horizontal band whose depth tolerance gets enlarged (ground far-field)
   enlarge_angle: 2.0
   enlarge_depth: 3.0
   occluded_map_thr1: 3
@@ -152,17 +152,17 @@ dyn_obj:
 
   point_index: -1
   debug_publish: false
-  cluster_coupled: false
-  cluster_future: false
+  cluster_coupled: true
+  cluster_future: true
   cluster_extend_pixel: 3
-  cluster_min_pixel_number: 1
-  cluster_thrustable_thresold: 0.1
+  cluster_min_pixel_number: 3  # drop isolated single-pixel detections
+  cluster_thrustable_thresold: 0.3
   cluster_Voxel_revolusion: 0.5
   cluster_out_file: ""
 
   dyn_filter_en: true
   frame_id: "world"
-  ver_resolution_max: 0.004
+  ver_resolution_max: 0.005   # azimuth cell (crossed keys); < 0.005 overflows the depth-map grid
   hor_resolution_max: 0.022
   buffer_dur: 0.1
   laserCloudSteadObj_accu_limit: 5

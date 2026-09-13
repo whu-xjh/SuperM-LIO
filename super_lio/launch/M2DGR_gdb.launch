@@ -2,5 +2,5 @@
   <arg name="rviz" default="false" />
   <rosparam file="$(find super_lio)/config/M2DGR.yaml" command="load"/>
   <node pkg="super_lio" type="super_lio_node" name="lio_node" output="screen"
-        launch-prefix="gdb -q -batch -ex run -ex 'bt 30' --args " />
+        launch-prefix="gdb -q -batch -ex 'set confirm off' -ex run -ex 'bt 15' -ex 'frame 0' -ex 'info locals' -ex 'p point' -ex 'p this->buffer.head' -ex 'p this->buffer.tail' -ex 'p this->buffer.counter' -ex 'p this->buffer.Q_LEN' -ex 'x/8gx this->buffer.q' -ex 'p buffer_size' -ex 'p points_num_perframe' -ex 'p max_pointers_num' -ex 'p cur_point_soph_pointers' -ex 'p max_depth_map_num' -ex 'p depth_map_dur' --args " />
 </launch>

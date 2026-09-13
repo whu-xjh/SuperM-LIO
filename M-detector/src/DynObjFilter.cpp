@@ -471,9 +471,17 @@ void  DynObjFilter::filter(PointCloudXYZI::Ptr feats_undistort, const M3D & rot_
             }
         }
     }
-    if(time_file != "") time_out << omp_get_wtime()-clus_before << " "; //rec computation time  
+    if(time_file != "") time_out << omp_get_wtime()-clus_before << " ";
     double t3 = omp_get_wtime();
-    Points2Buffer(points, index);
+    // INVALID points never enter the depth-map buffer: they skip spherical
+    // projection (stale zeroed indices) and would only poison pixels.
+    std::vector<int> index_valid;
+    index_valid.reserve(points.size());
+    for(std::size_t i = 0; i < points.size(); i++)
+    {
+        if(points[i]->dyn != INVALID) index_valid.push_back(static_cast<int>(i));
+    }
+    Points2Buffer(points, index_valid);
     double t4 = omp_get_wtime();
     if(time_file != "") time_out << omp_get_wtime()-t3 << " "; //rec computation time
     Buffer2DepthMap(scan_end_time);
@@ -564,10 +572,16 @@ void  DynObjFilter::filter(PointCloudXYZI::Ptr feats_undistort, const M3D & rot_
 void  DynObjFilter::Points2Buffer(vector<point_soph*> &points, std::vector<int> &index_vector)
 {
     int cur_tail = buffer.tail;
-    buffer.push_parallel_prepare(points.size());
+    // Reserve exactly what the loop writes; a mismatch desyncs the queue.
+    buffer.push_parallel_prepare(index_vector.size());
+    // Slot position must be the position inside index_vector (0..K-1), NOT the
+    // raw point id: a filtered list is sparse, so writing at cur_tail+i skips
+    // slots (front() then hands out never-written memory) while high i values
+    // overwrite slots beyond tail (heap corruption downstream).
+    const int *base = index_vector.data();
     std::for_each(std::execution::par, index_vector.begin(), index_vector.end(), [&](const int &i)
-    {   
-        buffer.push_parallel(points[i], cur_tail+i);
+    {
+        buffer.push_parallel(points[i], cur_tail + static_cast<int>(&i - base));
     });
 }
 
@@ -580,6 +594,7 @@ void  DynObjFilter::Buffer2DepthMap(double cur_time)
     double total_3 = 0.0;
     double t = 0.0;
     int max_point = 0;
+    int oob_dropped = 0;
     for (int k = 0; k < len; k++)
     {   
         point_soph* point = buffer.front();
@@ -615,11 +630,27 @@ void  DynObjFilter::Buffer2DepthMap(double cur_time)
                     depth_map_list.push_back(new_map_pointer);
                 }
             }
+            // Indices/vec are stale until projected (reset() keeps them, and
+            // early frames never project), so project first, then validate.
+            SphericalProjection(*point, depth_map_list.back()->map_index, depth_map_list.back()->project_R, depth_map_list.back()->project_T, *point);
+            if (point->position < 0 || \
+                point->position >= static_cast<int>(depth_map_list.back()->depth_map.size()) || \
+                !(point->vec(2) > 0.0f))
+            {
+                if (oob_dropped == 0)
+                {
+                    cout << "[DynFilter] drop bad point: position " << point->position
+                         << " (map cells " << depth_map_list.back()->depth_map.size()
+                         << "), hor_ind " << point->hor_ind << ", ver_ind " << point->ver_ind
+                         << ", range " << point->vec(2) << endl;
+                }
+                oob_dropped++;
+                buffer.pop();
+                continue;
+            }
             switch (point->dyn)
             {
-                if(depth_map_list.back()->depth_map.size() <= point->position) 
                 case STATIC:
-                    SphericalProjection(*point, depth_map_list.back()->map_index, depth_map_list.back()->project_R, depth_map_list.back()->project_T, *point);                  
                     if(depth_map_list.back()->depth_map[point->position].size() < max_pixel_points)
                     {
                         depth_map_list.back()->depth_map[point->position].push_back(point);
@@ -645,12 +676,11 @@ void  DynObjFilter::Buffer2DepthMap(double cur_time)
                         }                        
                     }
                     break;   
-                case CASE1:   
+                case CASE1:
 
                 case CASE2:
 
                 case CASE3:
-                    SphericalProjection(*point, depth_map_list.back()->map_index, depth_map_list.back()->project_R, depth_map_list.back()->project_T, *point);
                     if(depth_map_list.back()->depth_map[point->position].size() < max_pixel_points)
                     {
                         depth_map_list.back()->depth_map[point->position].push_back(point);
@@ -676,6 +706,10 @@ void  DynObjFilter::Buffer2DepthMap(double cur_time)
         {
             break;
         }
+    }
+    if (oob_dropped > 0)
+    {
+        cout << "[DynFilter] dropped " << oob_dropped << " OOB points this frame" << endl;
     }
     if (debug_en)
     {   
@@ -1220,10 +1254,12 @@ bool  DynObjFilter::Case2Enter(point_soph & p, const DepthMap &map_info)
     }
     float max_depth = 0;
     float depth_thr2_final = max(cutoff_value, k_depth_max_thr2*(p.vec(2) - d_depth_max_thr2)) + occ_depth_thr2;
-    if(map_info.depth_map[p.position].size() > 0)
+    // max_depth_index_all stays -1 for empty pixels; never index unchecked.
+    int max_ind = map_info.max_depth_index_all[p.position];
+    if(max_ind >= 0 && max_ind < static_cast<int>(map_info.depth_map[p.position].size()))
     {
-        const point_soph* max_point = map_info.depth_map[p.position][map_info.max_depth_index_all[p.position]];
-        max_depth = max_point->vec(2); 
+        const point_soph* max_point = map_info.depth_map[p.position][max_ind];
+        max_depth = max_point->vec(2);
         float delta_t = (p.time - max_point->time);
         depth_thr2_final = min(depth_thr2_final, v_min_thr2*delta_t);
     }
@@ -1633,10 +1669,12 @@ bool  DynObjFilter::Case3Enter(point_soph & p, const DepthMap &map_info)
     }
     float min_depth = 0;
     float depth_thr3_final = max(cutoff_value, k_depth_max_thr3*(p.vec(2) - d_depth_max_thr3)) + occ_depth_thr3;
-    if(map_info.depth_map[p.position].size() > 0)
+    // Same -1 guard as Case2Enter.
+    int min_ind = map_info.min_depth_index_all[p.position];
+    if(min_ind >= 0 && min_ind < static_cast<int>(map_info.depth_map[p.position].size()))
     {
-        const point_soph* min_point = map_info.depth_map[p.position][map_info.min_depth_index_all[p.position]];
-        min_depth = min_point->vec(2); 
+        const point_soph* min_point = map_info.depth_map[p.position][min_ind];
+        min_depth = min_point->vec(2);
         float delta_t = (p.time - min_point->time);
         depth_thr3_final = min(depth_thr3_final, v_min_thr3*delta_t);
     }

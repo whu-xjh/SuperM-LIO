@@ -4,7 +4,7 @@ project(m_detector)
 SET(CMAKE_BUILD_TYPE "Release")
 
 ADD_COMPILE_OPTIONS(-std=c++17 )
-set( CMAKE_CXX_FLAGS "-std=c++17 -O3 -ltbb" ) 
+set( CMAKE_CXX_FLAGS "-std=c++17 -O3 -g -ltbb" )
 
 add_definitions(-DROOT_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/\")
 

@@ -1,24 +1,20 @@
 lio:
-  # Map settings
   map:
     save_map: false
     if_filter: false
     save_map_dir: "map"
     map_name: "map.pcd"
     ds_size: 0.3
-    save_interval: 500    # -1 stores all frames directly (may cause excessive memory usage).
-                          # Values > 0 save one frame every N frames, then merge at the end.
+    save_interval: 500    # -1: keep all frames; N: save every Nth frame
 
-  # ROS Topic input
   ros:
     lidar_topic: "/hesai/pandar"
     imu_topic: "/alphasense/imu"
 
-  # Sensor Configuration
   sensor:
-    lidar_type: 2          # HESAI16 — works for all Hesai Pandar series (XT16/XT32/etc.)
-    blind: 0.5             # XT32 official min detection range: 0.05 m
-    maxrange: 120.0         # XT32 official max detection range: 120 m
+    lidar_type: 2          # HESAI16: fits all Pandar series (XT16/XT32/...)
+    blind: 0.5
+    maxrange: 120.0
     filter_rate: 1
     enable_downsample: true
     voxel_fliter_size: 0.1
@@ -34,33 +30,28 @@ lio:
                  0.0, -1.0,  0.0,
                 -1.0,  0.0,  0.0,
                  0.0,  0.0, -1.0]
-    odom_robo: [0.0, 0, 0, 0.0, 0.0, 0.0]    # Transform from odom to robot frame.
-                                             # The odom frame is directly attached to the IMU frame.
-                                             # NOTE: The inverse of this transform is applied in the code.
+    odom_robo: [0.0, 0, 0, 0.0, 0.0, 0.0]    # inverse applied in code; odom == IMU frame
 
-  # Vox hash Map
   hash_map:
     hash_capacity: 100000000
     vox_resolution: 0.5
 
-  # Kalman Filter Parameters
   kf:
     kf_type: 0
     kf_max_iterations: 4
     kf_align_gravity: true
     kf_quit_eps: 0.001
-    imu_int_frame: 30    # IMU frames accumulated before KF init (FAST-LIVO2: imu_int_frame).
-    dyn_filter_before_observe: true   # Moving-object filter position in the per-frame pipeline
- 
-  # output
+    imu_int_frame: 30                   # IMU frames accumulated before KF init
+    dyn_filter_before_observe: true     # run the moving-object filter before the ESKF update
+
   output:
-    robot:  false          # Publish pose for the mavros.
+    robot:  false          # publish pose for mavros
     plan_env_world: false
     plan_env_body:  false
-    planner: false         # Only publish point cloud data. This parameter is gradually deprecated.
-    map:    true           # Visualize point cloud data
+    planner: false
+    map:    true           # publish point cloud for visualization
     dense:  false
-    pub_step: 10           # Control the frequency of point cloud visualization to save TCP bandwidth
+    pub_step: 10
 
   evo:
     timer: true
@@ -68,43 +59,41 @@ lio:
     seq_name: "result"
     pose_output_dir: "/home/wsl-4080/code/traj_evo/pred/super-lio"
 
-# Moving-object filter (M-detector), flat keys read by m_detector's DynObjFilter.
-# Detection thresholds follow M-detector's spinning-lidar (KITTI) tuning,
-# adapted to the Hesai XT32 (0.05~120 m, 360deg x 31deg FoV = +15/-16,
-# 0.18deg(H) x 1deg(V), 640k pts/s single return).
-# 2026-09-09 误检压制调参(按杠杆分3组, 逐组可回退, 逐组可单独验证):
-#   [组1] 恢复确认闸门: acc_thr2/3, occluded_times_thr2/3, occluded_map_thr1, v_min_thr3, enter_max_thr1, cluster_min_pixel_number
-#   [组2] 放宽翻案容差: map_cons_depth/hor/ver_thr1-3, frame_dur→0.095 (buffer_delay/dataset/max_depth_map_num 此前已就位)
-#   [组3] 第二阶段: 距离斜坡 k/d_depth_*_thr1, Case2 触发对 (v_min_thr2+occ_depth_thr2), interp_ver_thr
+# M-detector (flat keys). XT32 tuning follows the KITTI spinning-lidar baseline.
+# 2026-09-09 false-positive suppression, 3 independent groups (revert per group):
+#   [g1] confirmation gates: acc_thr2/3, occluded_times_thr2/3, occluded_map_thr1,
+#        v_min_thr3, enter_max_thr1, cluster_min_pixel_number
+#   [g2] flip tolerances: map_cons_*_thr1-3, frame_dur
+#   [g3] distance ramps: k/d_depth_*_thr1, v_min_thr2+occ_depth_thr2 pair, interp_ver_thr
 dyn_obj:
   en: true
 
   dataset: 4
   buffer_delay: 0.1
   buffer_size: 150000
-  points_num_perframe: 100000   # XT32: 640k pts/s @10Hz = ~64k pts/scan (single return)
+  points_num_perframe: 100000   # ~64k pts/scan
   depth_map_dur: 0.1
   max_depth_map_num: 10
   max_pixel_points: 10
-  frame_dur: 0.1  
+  frame_dur: 0.1
   self_x_f: 0
   self_x_b: 0
   self_y_l: 0
   self_y_r: 0
-  blind_dis: 1.0               
+  blind_dis: 1.0
   fov_up: 15
   fov_down: -16
   fov_left: 180.0
   fov_right: -180.0
   fov_cut: -16
 
-  # case01判定
-  depth_thr1: 0.15              
-  enter_min_thr1: 1.0          
-  enter_max_thr1: 0.3  # [组1] 动起来误检的主入口: 比历史静态点近 0.3 m 才算"出现"
-  map_cons_depth_thr1: 0.3  # [组2] 翻案深度容差需覆盖位姿误差的深度投影
-  map_cons_hor_thr1: 0.02  # [组2] 允许 ~1.5 像素角度偏差后再翻案
-  map_cons_ver_thr1: 0.025  # [组2]
+  # case1
+  depth_thr1: 0.15
+  enter_min_thr1: 1.0
+  enter_max_thr1: 0.3          # [g1]
+  map_cons_depth_thr1: 0.3     # [g2]
+  map_cons_hor_thr1: 0.02      # [g2]
+  map_cons_ver_thr1: 0.025     # [g2]
   map_cons_hor_dis1: 0.15
   map_cons_ver_dis1: 0.15
   depth_cons_depth_thr1: 0.5
@@ -114,35 +103,34 @@ dyn_obj:
   enlarge_z_thr1: 0.05
   enlarge_angle: 2.0
   enlarge_depth: 3.0
-  # [组3] 距离斜坡: Case1 enter 阈值随距离 +k*(z-d) — 30 m 处 +0.2 m, 50 m 处 +0.4 m, 近场不变 (治远场散布型误检)
-  k_depth_min_thr1: 0.01
+  k_depth_min_thr1: 0.01       # [g3] enter threshold ramps with range
   d_depth_min_thr1: 10.0
   k_depth_max_thr1: 0.01
   d_depth_max_thr1: 10.0
-  occluded_map_thr1: 3  # [组1] 遮挡证据需跨 3 张图确认
-  case1_interp_en: true      
+  occluded_map_thr1: 3         # [g1]
+  case1_interp_en: true
 
-  # case02判定
-  v_min_thr2: 2.5  # [组3] Case2 触发阈值 = min(occ_depth_thr2, v_min_thr2·Δt) ≈ 0.24 m, 原 0.15; 两项必须同时改
-  acc_thr2: 2  # [组1] 速度链一致性, 专治位姿噪声产生的虚假隐含速度
-  map_cons_depth_thr2: 0.3  # [组2]
+  # case2
+  v_min_thr2: 2.5              # [g3] pair with occ_depth_thr2 (min of the two)
+  acc_thr2: 2                  # [g1]
+  map_cons_depth_thr2: 0.3     # [g2]
   map_cons_hor_thr2: 0.01
   map_cons_ver_thr2: 0.01
-  occ_depth_thr2: 0.3  # [组3] 与 v_min_thr2 配对 (取小者, 单独改任一项无效)
+  occ_depth_thr2: 0.3          # [g3] pair with v_min_thr2
   occ_hor_thr2: 0.01
   occ_ver_thr2: 0.015
-  depth_cons_depth_thr2: 0.1    
+  depth_cons_depth_thr2: 0.1
   depth_cons_depth_max_thr2: 0.5
   depth_cons_hor_thr2: 0.01
   depth_cons_ver_thr2: 0.01
-  occluded_times_thr2: 3  # [组1]
+  occluded_times_thr2: 3       # [g1]
   k_depth2: 0.005
   case2_interp_en: false
 
-  # case03判定
-  v_min_thr3: 1.0  # [组1] Case3 触发阈值 5cm→10cm (Δt=0.1 时)
-  acc_thr3: 2  # [组1]
-  map_cons_depth_thr3: 0.3  # [组2]
+  # case3
+  v_min_thr3: 1.0              # [g1]
+  acc_thr3: 2                  # [g1]
+  map_cons_depth_thr3: 0.3     # [g2]
   map_cons_hor_thr3: 0.01
   map_cons_ver_thr3: 0.008
   occ_depth_thr3: 0.15
@@ -152,11 +140,11 @@ dyn_obj:
   depth_cons_depth_max_thr3: 1.0
   depth_cons_hor_thr3: 0.01
   depth_cons_ver_thr3: 0.01
-  occluded_times_thr3: 3  # [组1]
+  occluded_times_thr3: 3       # [g1]
   case3_interp_en: false
 
   interp_hor_thr: 0.015
-  interp_ver_thr: 0.02  # [组3] 须 > XT32 环距 0.0175 rad 才能拼出三角形; 0.1 窗口过宽(±5.7°, 跨6条环), 远环深度会污染插值参考
+  interp_ver_thr: 0.02         # [g3] must exceed the 0.0175 rad ring gap
   interp_thr1: 0.5
   interp_static_max: 10.0
   interp_start_depth1: 10
@@ -167,23 +155,17 @@ dyn_obj:
 
   point_index: -1
   debug_publish: false
-  # Cluster post-processing disabled: Cluster.Init() pre-allocates huge voxel
-  # tables at fine resolutions (see livox_360.yaml note).
+  # cluster_coupled: Cluster.Init() pre-allocates huge tables at fine resolutions
   cluster_coupled: true
   cluster_future: false
   cluster_extend_pixel: 2
-  cluster_min_pixel_number: 6  # [组1] 孤立误检点难以成簇存活
+  cluster_min_pixel_number: 6  # [g1]
   cluster_thrustable_thresold: 0.3
   cluster_Voxel_revolusion: 0.5
   cluster_out_file: ""
 
   dyn_filter_en: true
   frame_id: "world"
-  # NOTE: DynObjFilter::init() swaps these two keys while loading — the value
-  # under ver_resolution_max becomes the AZIMUTH cell size, hor_resolution_max
-  # the ELEVATION cell size. XT32 native resolution is 0.18deg(H) x 1deg(V).
-  # The azimuth cell must stay >= 2*pi/1257 (~0.005 rad): M-detector's depth-map
-  # grid is fixed at 1257 azimuth cells and finer cells would overflow it.
   ver_resolution_max: 0.005
   hor_resolution_max: 0.0175
   buffer_dur: 0.1

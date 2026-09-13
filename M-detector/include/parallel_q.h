@@ -7,7 +7,7 @@ class PARALLEL_Q
 private:
     int counter = 0;
     int Q_LEN;
-    bool is_empty, initialized = false;
+    bool is_empty = true, initialized = false;
 public:
     T * q;
     int head = 0, tail = 0;
