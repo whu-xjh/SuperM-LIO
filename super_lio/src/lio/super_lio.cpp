@@ -448,7 +448,8 @@ void SuperLIO::Propagation_Undistort(){
       }
       auto match_iter_n = std::next(match_iter);
       double dt = match_iter_n->time - match_iter->time;
-      double s = (query_time - match_iter->time) / dt;
+      double tau = query_time - match_iter->time;
+      double s   = tau / dt;
       R_h = match_iter->R;
       R_t = match_iter_n->R;
       p_h = match_iter->p;
@@ -456,7 +457,8 @@ void SuperLIO::Propagation_Undistort(){
       acc_t = match_iter_n->a;
       w_t = match_iter_n->w;
       M3 R_i = Quat(R_h).slerp(s, Quat(R_t)).toRotationMatrix();
-      V3 t_ei(p_h + v_h * dt + 0.5 * acc_t * dt * dt - T_end_t);
+      V3 p_i = p_h + v_h * tau + 0.5 * acc_t * tau * tau;
+      V3 t_ei = p_i - T_end_t;
       V3 raw(pt.x, pt.y, pt.z);
       V3 eigen_point = R_inv * (R_i * (TLI_R * raw + TLI_t) + t_ei);
       pt_full.x = eigen_point[0];

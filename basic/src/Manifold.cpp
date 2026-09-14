@@ -287,56 +287,53 @@ V4 SO3::coeffs() const noexcept{
   return Quat(R_).coeffs();
 }
 
-M3 SO3::log(double *ro) const noexcept{
-  M3 res;
-  double tr = (R_.trace()-1)*0.5;
-  double o;
-  if (tr  < 1.0 - 1e-9 && tr > -1.0 + 1e-9 )
-  {
-    o = std::fabs(std::acos(tr));
-    res << 0.5 * o / std::sin(o) * ( R_ - R_.transpose());
+
+M3 SO3::log(double* ro) const noexcept
+{
+  const Eigen::Matrix3d R_double = R_.cast<double>();
+
+  Eigen::Quaterniond q(R_double);
+  q.normalize();
+
+  if(q.w() < 0.0) {
+    q.coeffs() *= -1.0;
   }
-  else if (tr >= 1.0 - 1e-9 )
-  {
-    o = 0.0;
-    res << M3::Zero();
+
+  const Eigen::Vector3d vector_part(
+      q.x(),
+      q.y(),
+      q.z()
+  );
+
+  const double sin_half_theta = vector_part.norm();
+
+  Eigen::Vector3d rotation_vector;
+  double theta = 0.0;
+
+  if(sin_half_theta < 1e-12) {
+    rotation_vector = 2.0 * vector_part;
+    theta = rotation_vector.norm();
   }
-  else
-  {
-    o = M_PI;
-    V3 w;
-    if( R_(0,0) > R_(1,1) && R_(0,0) > R_(2,2) )
-    {
-      w << R_(0,0) + 1.0,
-          0.5 * ( R_(0,1) + R_(1,0)),
-          0.5 * ( R_(0,2) + R_(2,0));
-    }
-    else if( R_(1,1) > R_(0,0) && R_(1,1) > R_(2,2) )
-    {
-      w << 0.5 * ( R_(1,0) + R_(0,1)),
-            R_(1,1) + 1.0,
-            0.5 * ( R_(1,2) + R_(2,1));
-    }
-    else
-    {
-      w << 0.5 * ( R_(2,0) + R_(0,2)),
-            0.5 * ( R_(2,1) + R_(1,2)),
-            R_(2,2) + 1.0;
-    }
-    double length = w.norm();
-    if (length > 0.0)
-    {
-      w *= M_PI / length;
-    }
-    else
-    {
-      w << 0.0, 0.0, 0.0;
-    }
-    res = hat(w);
+  else {
+    theta = 2.0 * std::atan2(
+        sin_half_theta,
+        q.w()
+    );
+
+    rotation_vector =
+        theta / sin_half_theta
+        * vector_part;
   }
-  if (ro != nullptr) *ro = o;
-  return res;
+
+  if(ro != nullptr) {
+    *ro = theta;
+  }
+
+  return SO3::hat(
+      rotation_vector.cast<scalar>()
+  );
 }
+
 
 V3 SO3::log_vee() const noexcept{
   M3 w_hat = this->log();
